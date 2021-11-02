@@ -33,9 +33,9 @@ namespace RandomCoffee.Services
 			if (ids.Count == 1)
 				return _personsById[ids[0]];
 
-			var id = Random.Next(0, ids.Count + 1);
+			var id = Random.Next(0, ids.Count);
 
-			return _personsById[id];
+			return _personsById[ids[id]];
 		}
 
 		private void AddPerson(Person person)

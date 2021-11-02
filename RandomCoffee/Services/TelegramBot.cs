@@ -53,27 +53,32 @@ namespace RandomCoffee.Services
 				var message = update.Message;
 				if (message.Type == Telegram.Bot.Types.Enums.MessageType.Text)
 				{
-					var response = string.Empty;
-					if (message.Text == "/start")
+					var response = "Bad command";
+					switch (message.Text)
 					{
-						response = "Hello";
-					}
-					else if (message.Text == "/help")
-					{
-						response = $"Commands:{Environment.NewLine} /meeting - create meeting";
-					}
-					else if (message.Text == "/meeting")
-					{
-						try
-						{
-							var meeting = await _meetingService.CreateMeetingAsync();
-							foreach (var person in meeting.Persons)
-								response += $"{person.Name} {person.LastName}{Environment.NewLine}";
-						}
-						catch (Exception e)
-						{
-							Log.Error(e, "Error");
-						}
+						case "/start":
+							response = "Hello";
+							break;
+						case "/help":
+							response = $"Commands:{Environment.NewLine}" +
+							           $"/meeting - create meeting {Environment.NewLine}" +
+							           $"/show - show next meeting (for test)";
+							break;
+						case "/create" or "/show":
+							try
+							{
+								response = string.Empty;
+								var isNeedSave = message.Text == "/create";
+								var meeting = await _meetingService.CreateMeetingAsync(isNeedSave);
+								foreach (var person in meeting.Persons)
+									response += $"{person.Name} {person.LastName}{Environment.NewLine}";
+							}
+							catch (Exception e)
+							{
+								response = "Error";
+								Log.Error(e, "Error");
+							}
+							break;
 					}
 
 					await _client.SendTextMessageAsync(

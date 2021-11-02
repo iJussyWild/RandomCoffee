@@ -1,5 +1,4 @@
-﻿using System.Collections.Generic;
-using System.Linq;
+﻿using System.Linq;
 using System.Threading.Tasks;
 using RandomCoffee.Database.Entities;
 using RandomCoffee.Storers;
@@ -24,26 +23,29 @@ namespace RandomCoffee.Services
 			_resolver = resolver;
 		}
 
-		public async Task<Meeting> CreateMeetingAsync()
+		public async Task<Meeting> CreateMeetingAsync(bool isNeedSave)
 		{
-			var personsToMeeting = new List<Person>(PersonsCount);
 			var persons = await _personStorer.GetAllPersonsByIdsAsync();
 			if (persons == null || persons.Count == 0)
 				throw new LogicException("Persons are not exist");
 
-			var person = persons.Values.OrderBy(p => p.PersonMeetings.Count).First();
+			var meeting = new Meeting();
+			var person = persons.Values.OrderBy(p => p.Meetings.Count).First();
 			persons.Remove(person.Id);
-			personsToMeeting.Add(person);
+			meeting.Persons.Add(person);
 
 			var otherPersons = PersonsCount - 1;
 			for (var i = 0; i < otherPersons; i++)
 			{
 				person = _resolver.GetPersonForMeetingByMaxPoints(persons.Values, person);
 				persons.Remove(person.Id);
-				personsToMeeting.Add(person);
+				meeting.Persons.Add(person);
 			}
 
-			return await _meetingStorer.AddMeetingAsync(personsToMeeting);
+			if (isNeedSave)
+				await _meetingStorer.AddMeetingAsync(meeting);
+
+			return meeting;
 		}
 	}
 }

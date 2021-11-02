@@ -1,4 +1,4 @@
-﻿using System.Collections.Generic;
+﻿using System.Linq;
 using System.Threading.Tasks;
 using RandomCoffee.Database;
 using RandomCoffee.Database.Entities;
@@ -10,15 +10,23 @@ namespace RandomCoffee.Storers
 		public MeetingStorer(AppDbContext dbContext) : base(dbContext)
 		{ }
 
-		public async Task<Meeting> AddMeetingAsync(IEnumerable<Person> persons)
+		public async Task<int> AddMeetingAsync(Meeting meeting)
 		{
-			var meeting = new Meeting();
-			meeting.Persons.AddRange(persons);
+			var pms = meeting.Persons.Select(p =>
+				new PersonMeeting()
+				{
+					MeetingId = meeting.Id,
+					PersonId = p.Id
+				});
 
-			// DbContext.Meetings.Add(meeting);
-			// await DbContext.SaveChangesAsync();
+			var newMeeting = new Meeting();
+			newMeeting.PersonMeetings.AddRange(pms);
+			DbContext.Meetings.Add(newMeeting);
 
-			return meeting;
+			await DbContext.SaveChangesAsync();
+			meeting.Id = meeting.Id;
+
+			return meeting.Id;
 		}
 	}
 }
