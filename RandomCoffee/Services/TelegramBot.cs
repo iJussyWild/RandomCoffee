@@ -1,23 +1,26 @@
 ﻿using System;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
 using Serilog;
 using Telegram.Bot;
+using Telegram.Bot.Types;
 
 namespace RandomCoffee.Services
 {
 	public class TelegramBot : BackgroundService
 	{
-		private static TelegramBotClient _client;
-		private static int _offset;
+		private readonly TelegramBotClient _client;
+		private readonly UpdateHandler _updateHandler;
 
-		private readonly MeetingService _meetingService;
+		private int _nextUpdateId;
+		private bool _isFirstPass = true;
 
-		public TelegramBot(IConfiguration config, MeetingService meetingService)
+		public TelegramBot(IConfiguration config, UpdateHandler updateHandler)
 		{
-			_meetingService = meetingService;
+			_updateHandler = updateHandler;
 			_client = new TelegramBotClient(config.GetValue("BotToken", string.Empty));
 		}
 
@@ -29,7 +32,8 @@ namespace RandomCoffee.Services
 			{
 				while (true)
 				{
-					await CheckUpdates(stoppingToken);
+					var updates = await GetUpdatesAsync(stoppingToken);
+					await HandleUpdatesAsync(updates, stoppingToken);
 					await Task.Delay(TimeSpan.FromSeconds(10), stoppingToken);
 				}
 			}
@@ -45,49 +49,31 @@ namespace RandomCoffee.Services
 			}
 		}
 
-		private async Task CheckUpdates(CancellationToken stoppingToken)
+		private async Task<Update[]> GetUpdatesAsync(CancellationToken stoppingToken)
 		{
-			var updates = await _client.GetUpdatesAsync(_offset, cancellationToken:stoppingToken);
+			var updates = await _client.GetUpdatesAsync(_nextUpdateId, cancellationToken:stoppingToken);
+
+			if (updates == null || updates.Length == 0)
+				return Array.Empty<Update>();
+
+			_nextUpdateId = updates.Last().Id + 1;
+
+			var isFirstPass = _isFirstPass;
+			_isFirstPass = false;
+
+			return isFirstPass ? Array.Empty<Update>() : updates;
+		}
+
+		private async Task HandleUpdatesAsync(Update[] updates, CancellationToken stoppingToken)
+		{
 			foreach(var update in updates)
 			{
-				var message = update.Message;
-				if (message.Type == Telegram.Bot.Types.Enums.MessageType.Text)
-				{
-					var response = "Bad command";
-					switch (message.Text)
-					{
-						case "/start":
-							response = "Hello";
-							break;
-						case "/help":
-							response = $"Commands:{Environment.NewLine}" +
-							           $"/meeting - create meeting {Environment.NewLine}" +
-							           $"/show - show next meeting (for test)";
-							break;
-						case "/create" or "/show":
-							try
-							{
-								response = string.Empty;
-								var isNeedSave = message.Text == "/create";
-								var meeting = await _meetingService.CreateMeetingAsync(isNeedSave);
-								foreach (var person in meeting.Persons)
-									response += $"{person.Name} {person.LastName}{Environment.NewLine}";
-							}
-							catch (Exception e)
-							{
-								response = "Error";
-								Log.Error(e, "Error");
-							}
-							break;
-					}
-
-					await _client.SendTextMessageAsync(
-						message.Chat.Id,
-						response,
-						replyToMessageId: message.MessageId,
-						cancellationToken: stoppingToken);
-				}
-				_offset = update.Id + 1;
+				var response = await _updateHandler.HandleUpdate(update);
+				await _client.SendTextMessageAsync(
+					update.Message.Chat.Id,
+					response,
+					replyToMessageId: update.Message.MessageId,
+					cancellationToken: stoppingToken);
 			}
 		}
 	}

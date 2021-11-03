@@ -59,6 +59,7 @@ namespace RandomCoffee
 			services.AddScoped<IMeetingStorer, MeetingStorer>();
 			services.AddScoped<PersonPointsResolver>();
 			services.AddScoped<MeetingService>();
+			services.AddScoped<UpdateHandler>();
 			services.AddHostedService<TelegramBot>();
 		}
 
