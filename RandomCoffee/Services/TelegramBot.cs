@@ -53,15 +53,20 @@ namespace RandomCoffee.Services
 		{
 			var updates = await _client.GetUpdatesAsync(_nextUpdateId, cancellationToken:stoppingToken);
 
+			var isFirstPass = _isFirstPass;
+			_isFirstPass = false;
 			if (updates == null || updates.Length == 0)
 				return Array.Empty<Update>();
 
 			_nextUpdateId = updates.Last().Id + 1;
 
-			var isFirstPass = _isFirstPass;
-			_isFirstPass = false;
+			if (isFirstPass)
+			{
+				Log.Information("Skip first pass");
+				return Array.Empty<Update>();
+			}
 
-			return isFirstPass ? Array.Empty<Update>() : updates;
+			return updates;
 		}
 
 		private async Task HandleUpdatesAsync(Update[] updates, CancellationToken stoppingToken)
